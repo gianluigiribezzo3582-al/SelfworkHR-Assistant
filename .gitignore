@@ -1,0 +1,25 @@
+# Reference/lesson material - kept locally only, not pushed to GitHub
+Code/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Poetry
+poetry.lock.bak
+
+# Environment variables / secrets
+.env
+
+# Vector store persistence
+HR_Assistant/data/
+*.sqlite3
+
+# Chainlit runtime cache/state (config.toml itself is tracked)
+.files/
+chainlit.db
+
+# Editor
+.vscode/
