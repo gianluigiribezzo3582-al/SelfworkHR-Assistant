@@ -1,52 +1,76 @@
 import os
-import uuid
-from dotenv import load_dotenv
 import chainlit as cl
-import chromadb
-from chromadb.utils import embedding_functions
+from document_processor import DocumentProcessor
+from database import Database
+from config import Config
+from utils import LLMHelper
 
-load_dotenv()
 
-## FASE 1 - Lettura Files e Chunking
+# Process documents
+documents, metadatas, ids = DocumentProcessor.process_documents()
 
-documents_dir = "resumes"
+# Initialize database and add documents
+db = Database()
+db.add_documents(documents, metadatas, ids)
 
-documents = []
-metadatas = []
-ids = []
 
-for filename in os.listdir(documents_dir):
-    if filename.endswith(".txt"):
-        with open(os.path.join(documents_dir, filename), "r") as file:
-            chunks = file.read().replace("\n", ".").split("### ")
-
-            for chunk in chunks:
-                if not chunk.isspace() and not chunk == "":
-                    documents.append(chunk)
-                    metadatas.append({"source": filename})
-                    # Genera un nuovo GUID per ogni chunk
-                    guid = str(uuid.uuid4())
-                    ids.append(guid)
-
-## Fase 2 - Embeddings e inserimento nel DB Vettoriale
-
-openai_ef = embedding_functions.OpenAIEmbeddingFunction(
-    api_key=os.getenv("OPENAI_API_KEY"), model_name="text-embedding-3-small"
-)
-
-chroma_client = chromadb.PersistentClient(path="data/chromadb")
-
-# Using OpenAI embedding function instead of the default model to convert text into embeddings.
-collection = chroma_client.get_or_create_collection(
-    name="CVs", embedding_function=openai_ef
-)
-
-collection.add(documents=documents, metadatas=metadatas, ids=ids)
-
-## FASE 3 - CHAT (placeholder, completata nel prossimo avanzamento)
+@cl.on_chat_start
+def start():
+    cl.user_session.set(
+        "messages",
+        [
+            {
+                "role": "system",
+                "content": """
+                    Sei un assistente specializzato nel mondo HR, rispondi in modo professionale, sintetico e pragmatico.
+                    Il tuo ruolo è individuare il candidato ideale rispetto alle richieste dell'utente.
+                """,
+            }
+        ],
+    )
 
 
 @cl.on_message
 async def handle_message(message: cl.Message):
-    response = f"Ciao, mi hai scritto: {message.content}!"
-    await cl.Message(response).send()
+    user_question = message.content
+    results = db.query(user_question)
+    distance = results["distances"][0][0]
+
+    if distance <= Config.RELEVANCE_THRESHOLD:
+        filename = results["metadatas"][0][0]["source"]
+        context_lines = DocumentProcessor.read_first_lines(
+            os.path.join(Config.DOCUMENTS_DIR, filename), 10
+        )
+
+        context = f"CONTESTO: ecco il paragrafo piu' significativo del profilo individuato: {results['documents'][0][0]}"
+
+        candidate_name = await LLMHelper.get_candidate_name(context_lines)
+
+        prompt = LLMHelper.create_prompt(context, user_question, candidate_name)
+    else:
+        # Nessun CV sufficientemente pertinente: rispondi senza forzare un abbinamento
+        prompt = user_question
+
+    messages = cl.user_session.get("messages", [])
+    messages.append({"role": "user", "content": prompt})
+
+    response_message = cl.Message(content="")
+    await response_message.send()
+
+    try:
+        stream = LLMHelper.chat(messages)
+
+        for chunk in stream:
+            delta = chunk.choices[0].delta.content
+            if delta:
+                await response_message.stream_token(delta)
+
+        messages.append({"role": "assistant", "content": response_message.content})
+        await response_message.update()
+
+    except Exception as e:
+        error_message = f"An error occurred: {str(e)}"
+        await cl.Message(content=error_message).send()
+        print(error_message)
+
+    cl.user_session.set("messages", messages)
