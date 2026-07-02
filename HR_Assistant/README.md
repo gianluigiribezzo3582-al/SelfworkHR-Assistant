@@ -52,6 +52,20 @@ file `.txt` in quella cartella (i paragrafi vanno separati con `### `).
 $ poetry run chainlit run hr_assistant/__init__.py -w
 ```
 
-All'avvio i CV vengono (ri)letti, suddivisi in chunk e indicizzati in ChromaDB (`data/chromadb`,
-escluso da git). Apri `http://localhost:8000` e chiedi in chat il profilo che stai cercando, ad
-esempio: *"Ho bisogno di una persona esperta di marketing"*.
+All'avvio i CV vengono sincronizzati con ChromaDB (`data/chromadb`, escluso da git). Apri
+`http://localhost:8000` e chiedi in chat il profilo che stai cercando, ad esempio: *"Ho bisogno di
+una persona esperta di marketing"*.
+
+## Sincronizzazione dei CV
+
+Ad ogni avvio, invece di reindicizzare tutti i CV da zero, il sistema sincronizza `resumes/` con il
+database confrontando gli hash MD5 dei file:
+
+- **file nuovi** (in `resumes/` ma non nel DB) → vengono suddivisi in chunk e indicizzati;
+- **file modificati** (hash del contenuto diverso da quello tracciato) → i vecchi frammenti vengono
+  rimossi e sostituiti con quelli aggiornati;
+- **file rimossi** (tracciati nel DB ma non piu' presenti in `resumes/`) → i relativi frammenti
+  vengono eliminati dal DB.
+
+Questo evita duplicazioni, riduce le chiamate all'API di embedding al minimo necessario e mantiene
+il database sempre coerente con lo stato reale della cartella `resumes/`.

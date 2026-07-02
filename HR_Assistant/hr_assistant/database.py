@@ -21,3 +21,25 @@ class Database:
 
     def query(self, query_text, n_results=1):
         return self.collection.query(query_texts=[query_text], n_results=n_results)
+
+    def get_tracked_files(self):
+        """Ritorna i file attualmente tracciati nel DB con hash e data di modifica."""
+        result = self.collection.get()
+        tracked_files = {}
+
+        if result and result["metadatas"]:
+            for metadata in result["metadatas"]:
+                if metadata["source"] not in tracked_files:
+                    tracked_files[metadata["source"]] = {
+                        "hash": metadata["hash"],
+                        "last_modified": metadata["last_modified"],
+                        "source": metadata["source"],
+                    }
+
+        return tracked_files
+
+    def remove_document_by_source(self, source):
+        """Rimuove tutti i frammenti associati a un file sorgente."""
+        result = self.collection.get(where={"source": source})
+        if result and result["ids"]:
+            self.collection.delete(ids=result["ids"])

@@ -6,12 +6,11 @@ from config import Config
 from utils import LLMHelper
 
 
-# Process documents
-documents, metadatas, ids = DocumentProcessor.process_documents()
-
-# Initialize database and add documents
 db = Database()
-db.add_documents(documents, metadatas, ids)
+
+# Sincronizza i CV in resumes/ con il database (add/update/remove basati su hash)
+added, updated, removed = DocumentProcessor.process_documents(db)
+print(f"Sync CV completato: {added} aggiunti, {updated} aggiornati, {removed} rimossi")
 
 
 @cl.on_chat_start
