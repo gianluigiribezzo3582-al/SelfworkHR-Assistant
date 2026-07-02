@@ -69,3 +69,7 @@ database confrontando gli hash MD5 dei file:
 
 Questo evita duplicazioni, riduce le chiamate all'API di embedding al minimo necessario e mantiene
 il database sempre coerente con lo stato reale della cartella `resumes/`.
+
+All'avvio della chat sono disponibili due bottoni:
+- **Statistiche Database**: numero di frammenti indicizzati e di CV distinti nel DB.
+- **Reindex Database**: rilancia manualmente il sync sopra descritto senza riavviare l'app.
