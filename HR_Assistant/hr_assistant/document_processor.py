@@ -3,6 +3,7 @@ import os
 import uuid
 import hashlib
 from config import Config
+from semantic_chunking import SemanticChunking
 
 
 class DocumentProcessor:
@@ -30,13 +31,13 @@ class DocumentProcessor:
 
     @staticmethod
     def process_single_document(file_path):
-        """Suddivide un singolo file in chunk pronti per l'indicizzazione."""
+        """Suddivide un singolo file in chunk semantici pronti per l'indicizzazione."""
         documents = []
         metadatas = []
         ids = []
 
         with open(file_path, "r") as file:
-            chunks = file.read().replace("\n", ".").split("### ")
+            chunks = SemanticChunking.chunk_it(file.read())
             file_metadata = DocumentProcessor.get_document_metadata(file_path)
 
             for chunk in chunks:

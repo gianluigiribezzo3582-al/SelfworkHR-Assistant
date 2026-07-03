@@ -44,7 +44,17 @@ La chiave non va mai scritta nel codice: viene letta a runtime da `.env` tramite
 ## CV indicizzati
 
 I CV di esempio si trovano in `resumes/*.txt`. Per aggiungere nuovi candidati basta inserire un nuovo
-file `.txt` in quella cartella (i paragrafi vanno separati con `### `).
+file `.txt` in quella cartella.
+
+## Chunking Semantico
+
+Invece di dividere i CV in modo meccanico (per marcatori di paragrafo `### ` o per lunghezza fissa),
+il testo viene prima diviso in frasi; ogni frase viene poi combinata con quelle immediatamente vicine
+per darle contesto e se ne calcola l'embedding OpenAI. Confrontando via similarita' coseno l'embedding
+di frasi consecutive si individuano i punti in cui il significato cambia in modo significativo (sopra il
+95° percentile delle distanze): li' si spezza il testo in un nuovo chunk. Il risultato sono chunk che
+raggruppano frasi semanticamente coerenti, invece di frammenti tagliati arbitrariamente. Vedi
+`hr_assistant/semantic_chunking.py`.
 
 ## Avvio dell'applicazione
 
