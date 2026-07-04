@@ -18,11 +18,33 @@ class SemanticChunking:
         self.breakpoint_percentile = breakpoint_percentile
         self.buffer_size = buffer_size
 
+    def _split_into_sentences(self, text):
+        """Divide il testo in frasi, con fallback progressivi per evitare che un
+        intero file (es. senza punteggiatura standard) diventi un'unica frase."""
+        sentences = re.split(r"(?<=[.?!])\s+", text.strip())
+
+        if len(sentences) == 1 and len(text) > 100:
+            delimiters = r"([.!?\n;:])"
+            parts = re.split(delimiters, text.strip())
+
+            sentences = []
+            for i in range(0, len(parts) - 1, 2):
+                if parts[i].strip():
+                    sentences.append(parts[i].strip() + parts[i + 1])
+
+            if len(sentences) == 1:
+                sentences = [s.strip() + "," for s in text.split(",") if s.strip()]
+                if sentences:
+                    sentences[-1] = sentences[-1][:-1] + "."
+
+        sentences = [s for s in sentences if s.strip()]
+        return sentences if sentences else [text + "."]
+
     def _process_sentences(self, text):
         """Divide il testo in frasi e arricchisce ognuna col contesto delle vicine."""
         sentences = [
             {"sentence": s, "index": i}
-            for i, s in enumerate(re.split(r"(?<=[.?!])\s+", text))
+            for i, s in enumerate(self._split_into_sentences(text))
         ]
 
         for i, current in enumerate(sentences):

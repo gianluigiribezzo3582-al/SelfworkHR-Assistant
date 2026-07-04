@@ -2,15 +2,43 @@
 import os
 import uuid
 import hashlib
+import mimetypes
+import tempfile
+from zipfile import ZipFile
 from config import Config
 from semantic_chunking import SemanticChunking
+from markitdown import MarkItDown
+
+_md_converter = MarkItDown()
 
 
 class DocumentProcessor:
+    # Estensioni accettate per la sincronizzazione/upload, con relativa categoria
+    SUPPORTED_EXTENSIONS = {
+        ".txt": "text",
+        ".pdf": "document",
+        ".doc": "document",
+        ".docx": "document",
+        ".ppt": "presentation",
+        ".pptx": "presentation",
+        ".xls": "spreadsheet",
+        ".xlsx": "spreadsheet",
+        ".html": "web",
+        ".htm": "web",
+        ".csv": "data",
+        ".json": "data",
+        ".xml": "data",
+        # File di Archivio
+        ".zip": "archive",
+    }
+
     @staticmethod
     def read_first_lines(file_path, n_lines=100):
-        with open(file_path, "r") as file:
-            return [line.strip() for line, _ in zip(file, range(n_lines))]
+        try:
+            with open(file_path, "r", encoding="utf-8") as file:
+                return [line.strip() for line, _ in zip(file, range(n_lines))]
+        except UnicodeDecodeError:
+            return []  # Formato binario: nessuna anteprima testuale disponibile
 
     @staticmethod
     def get_file_hash(file_path):
@@ -23,11 +51,42 @@ class DocumentProcessor:
 
     @staticmethod
     def get_document_metadata(file_path):
+        extension = os.path.splitext(file_path)[1].lower()
         return {
             "hash": DocumentProcessor.get_file_hash(file_path),
             "last_modified": os.path.getmtime(file_path),
             "source": os.path.basename(file_path),
+            "file_type": DocumentProcessor.SUPPORTED_EXTENSIONS.get(extension, "unknown"),
+            "mime_type": mimetypes.guess_type(file_path)[0] or "",
+            "extension": extension,
         }
+
+    @staticmethod
+    def _convert_to_markdown(file_path):
+        """Converte un file in markdown tramite MarkItDown, per uniformare l'estrazione
+        del testo tra i diversi formati supportati (pdf, docx, pptx, xlsx, html, csv...)."""
+        try:
+            result = _md_converter.convert(file_path)
+            return result.text_content
+        except Exception as e:
+            print(f"Errore nella conversione di {file_path}: {str(e)}")
+            return ""
+
+    @staticmethod
+    def _process_zip_file(file_path):
+        """Estrae un archivio zip e converte in markdown ogni file supportato al suo interno."""
+        results = []
+        with tempfile.TemporaryDirectory() as temp_dir:
+            with ZipFile(file_path, "r") as zip_ref:
+                zip_ref.extractall(temp_dir)
+                for root, _, files in os.walk(temp_dir):
+                    for file in files:
+                        inner_path = os.path.join(root, file)
+                        if os.path.splitext(file)[1].lower() in DocumentProcessor.SUPPORTED_EXTENSIONS:
+                            content = DocumentProcessor._convert_to_markdown(inner_path)
+                            if content:
+                                results.append((file, content))
+        return results
 
     @staticmethod
     def process_single_document(file_path):
@@ -36,9 +95,22 @@ class DocumentProcessor:
         metadatas = []
         ids = []
 
-        with open(file_path, "r") as file:
+        extension = os.path.splitext(file_path)[1].lower()
+        file_type = DocumentProcessor.SUPPORTED_EXTENSIONS.get(extension)
+
+        if not file_type:
+            return documents, metadatas, ids
+
+        if file_type == "archive":
+            content = ""
+            for filename, zip_content in DocumentProcessor._process_zip_file(file_path):
+                content += f"\n\nFile: {filename}\n{zip_content}"
+        else:
+            content = DocumentProcessor._convert_to_markdown(file_path)
+
+        if content and not content.isspace():
             sc = SemanticChunking()
-            chunks = sc.chunk_text(file.read())
+            chunks = sc.chunk_text(content)
             file_metadata = DocumentProcessor.get_document_metadata(file_path)
 
             for chunk in chunks:
@@ -58,7 +130,7 @@ class DocumentProcessor:
                 os.path.join(Config.DOCUMENTS_DIR, f)
             )
             for f in os.listdir(Config.DOCUMENTS_DIR)
-            if f.endswith(".txt")
+            if os.path.splitext(f)[1].lower() in DocumentProcessor.SUPPORTED_EXTENSIONS
         }
 
         existing_files = db.get_tracked_files()

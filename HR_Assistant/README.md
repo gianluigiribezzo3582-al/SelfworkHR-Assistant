@@ -4,8 +4,9 @@ Assistente HR basato su RAG (Retrieval-Augmented Generation): indicizza i CV pre
 recupera il candidato piu' pertinente rispetto alla richiesta dell'utente e genera una risposta
 professionale tramite OpenAI Chat Completion.
 
-Flusso: CV (`resumes/*.txt`) → chunking → embedding OpenAI → ChromaDB (persistito in `data/`) →
-domanda utente → embedding → retrieval → contesto → prompt → OpenAI Chat Completion → risposta in chat.
+Flusso: CV (`resumes/`, vari formati) → conversione in markdown → chunking → embedding OpenAI →
+ChromaDB (persistito in `data/`) → domanda utente → embedding → retrieval → contesto → prompt →
+OpenAI Chat Completion → risposta in chat.
 
 ## Installazione Poetry
 
@@ -43,8 +44,11 @@ La chiave non va mai scritta nel codice: viene letta a runtime da `.env` tramite
 
 ## CV indicizzati
 
-I CV di esempio si trovano in `resumes/*.txt`. Per aggiungere nuovi candidati basta inserire un nuovo
-file `.txt` in quella cartella.
+I CV di esempio si trovano in `resumes/`. Oltre ai `.txt`, sono supportati anche `.pdf`, `.doc`/`.docx`,
+`.ppt`/`.pptx`, `.xls`/`.xlsx`, `.html`/`.htm`, `.csv`, `.json`, `.xml` e archivi `.zip` (il cui contenuto
+viene estratto e processato ricorsivamente): ogni formato viene convertito in markdown tramite
+[MarkItDown](https://github.com/microsoft/markitdown) prima del chunking semantico. Per aggiungere un
+nuovo candidato basta inserire un nuovo file in uno dei formati supportati in quella cartella.
 
 ## Chunking Semantico
 

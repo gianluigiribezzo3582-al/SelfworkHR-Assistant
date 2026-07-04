@@ -14,7 +14,8 @@ dependencies = [
     "python-dotenv (>=1.0.1,<2.0.0)",
     "langchain-openai (>=0.3.2,<0.4.0)",
     "scikit-learn (>=1.9.0,<2.0.0)",
-    "numpy (>=2.5.0,<3.0.0)"
+    "numpy (>=2.5.0,<3.0.0)",
+    "markitdown[docx,outlook,pdf,pptx,xls,xlsx] (>=0.1.6,<0.2.0)"
 ]
 
 [build-system]
