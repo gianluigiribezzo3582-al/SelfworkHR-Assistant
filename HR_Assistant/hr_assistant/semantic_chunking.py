@@ -7,80 +7,60 @@ from config import Config
 
 
 class SemanticChunking:
-    @staticmethod
-    def combine_sentences(sentences, buffer_size=1):
-        """Arricchisce ogni frase con il contesto delle frasi vicine (prima/dopo)."""
-        for i in range(len(sentences)):
-            combined_sentence = ""
+    """Divide un testo in chunk semantici: le frasi restano insieme finche' la
+    distanza coseno tra frasi consecutive (con contesto) non supera una soglia
+    espressa come percentile delle distanze osservate nel documento."""
 
-            for j in range(i - buffer_size, i):
-                if j >= 0:
-                    combined_sentence += sentences[j]["sentence"] + " "
+    def __init__(self, breakpoint_percentile=50, buffer_size=1):
+        self.embeddings = OpenAIEmbeddings(
+            openai_api_key=Config.OPENAI_API_KEY, model=Config.EMBEDDING_MODEL
+        )
+        self.breakpoint_percentile = breakpoint_percentile
+        self.buffer_size = buffer_size
 
-            combined_sentence += sentences[i]["sentence"]
+    def _process_sentences(self, text):
+        """Divide il testo in frasi e arricchisce ognuna col contesto delle vicine."""
+        sentences = [
+            {"sentence": s, "index": i}
+            for i, s in enumerate(re.split(r"(?<=[.?!])\s+", text))
+        ]
 
-            for j in range(i + 1, i + 1 + buffer_size):
-                if j < len(sentences):
-                    combined_sentence += " " + sentences[j]["sentence"]
-
-            sentences[i]["combined_sentence"] = combined_sentence
+        for i, current in enumerate(sentences):
+            context_range = range(
+                max(0, i - self.buffer_size),
+                min(len(sentences), i + self.buffer_size + 1),
+            )
+            current["combined_sentence"] = " ".join(
+                sentences[j]["sentence"] for j in context_range
+            )
 
         return sentences
 
-    @staticmethod
-    def calculate_cosine_distances(sentences):
+    def _calculate_distances(self, sentences):
         """Calcola la distanza coseno tra ogni frase (con contesto) e la successiva."""
+        embeddings = self.embeddings.embed_documents(
+            [s["combined_sentence"] for s in sentences]
+        )
+
         distances = []
         for i in range(len(sentences) - 1):
-            embedding_current = sentences[i]["combined_sentence_embedding"]
-            embedding_next = sentences[i + 1]["combined_sentence_embedding"]
-
-            similarity = cosine_similarity([embedding_current], [embedding_next])[0][0]
-            distance = 1 - similarity
-
+            distance = 1 - cosine_similarity([embeddings[i]], [embeddings[i + 1]])[0][0]
             distances.append(distance)
-            sentences[i]["distance_to_next"] = distance
 
-        return distances, sentences
+        return distances
 
-    @staticmethod
-    def chunk_it(txt, breakpoint_percentile_threshold=95):
-        """Divide il testo in chunk semantici: le frasi restano insieme finche' la
-        distanza coseno tra frasi consecutive non supera la soglia (percentile)."""
-        single_sentences_list = re.split(r"(?<=[.?!])\s+", txt)
-        sentences = [
-            {"sentence": x, "index": i} for i, x in enumerate(single_sentences_list)
-        ]
-        sentences = SemanticChunking.combine_sentences(sentences)
+    def chunk_text(self, text):
+        sentences = self._process_sentences(text)
+        distances = self._calculate_distances(sentences)
 
-        embeddings_model = OpenAIEmbeddings(
-            openai_api_key=Config.OPENAI_API_KEY, model=Config.EMBEDDING_MODEL
-        )
-        embeddings = embeddings_model.embed_documents(
-            [x["combined_sentence"] for x in sentences]
-        )
-        for i, sentence in enumerate(sentences):
-            sentence["combined_sentence_embedding"] = embeddings[i]
+        threshold = np.percentile(distances, self.breakpoint_percentile)
+        split_points = [i for i, d in enumerate(distances) if d > threshold]
 
-        distances, sentences = SemanticChunking.calculate_cosine_distances(sentences)
-
-        breakpoint_distance_threshold = np.percentile(
-            distances, breakpoint_percentile_threshold
-        )
-        indices_above_thresh = [
-            i for i, x in enumerate(distances) if x > breakpoint_distance_threshold
-        ]
-
-        start_index = 0
         chunks = []
-
-        for index in indices_above_thresh:
-            end_index = index
-            group = sentences[start_index : end_index + 1]
-            chunks.append(" ".join(d["sentence"] for d in group))
-            start_index = index + 1
-
-        if start_index < len(sentences):
-            chunks.append(" ".join(d["sentence"] for d in sentences[start_index:]))
+        start = 0
+        for point in split_points + [len(sentences) - 1]:
+            chunk = " ".join(s["sentence"] for s in sentences[start : point + 1])
+            chunks.append(chunk)
+            start = point + 1
 
         return chunks
