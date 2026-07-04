@@ -84,6 +84,16 @@ database confrontando gli hash MD5 dei file:
 Questo evita duplicazioni, riduce le chiamate all'API di embedding al minimo necessario e mantiene
 il database sempre coerente con lo stato reale della cartella `resumes/`.
 
-All'avvio della chat sono disponibili due bottoni:
+All'avvio della chat sono disponibili tre bottoni:
 - **Statistiche Database**: numero di frammenti indicizzati e di CV distinti nel DB.
 - **Reindex Database**: rilancia manualmente il sync sopra descritto senza riavviare l'app.
+- **Svuota Database**: elimina completamente la collezione (utile per un reindex da zero); dopo
+  averla svuotata usa Reindex Database per ripopolarla.
+
+## Upload da chat
+
+E' possibile trascinare uno o piu' file direttamente nella chat (icona di allegato): ogni file in un
+formato supportato viene salvato in `resumes/` e indicizzato immediatamente, senza bisogno di
+riavviare l'app o lanciare un reindex manuale. Se il messaggio contiene solo allegati (nessuna
+domanda), l'app conferma il caricamento e si ferma li'; se contiene anche del testo, prosegue subito
+interrogando il database aggiornato.

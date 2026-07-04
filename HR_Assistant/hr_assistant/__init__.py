@@ -1,4 +1,5 @@
 import os
+import shutil
 import chainlit as cl
 from document_processor import DocumentProcessor
 from database import Database
@@ -28,6 +29,14 @@ async def on_db_reindex(action: cl.Action):
     ).send()
 
 
+@cl.action_callback("db_remove")
+async def on_db_remove(action: cl.Action):
+    db.delete_collection()
+    await cl.Message(
+        "Database svuotato completamente. Usa Reindex Database per ripopolarlo."
+    ).send()
+
+
 @cl.on_chat_start
 async def start():
     actions = [
@@ -42,6 +51,12 @@ async def start():
             icon="mouse-pointer-click",
             payload={"value": "db_reindex"},
             label="Reindex Database",
+        ),
+        cl.Action(
+            name="db_remove",
+            icon="mouse-pointer-click",
+            payload={"value": "db_remove"},
+            label="Svuota Database",
         ),
     ]
     await cl.Message(content="Informazioni del sistema:", actions=actions).send()
@@ -60,11 +75,51 @@ async def start():
     )
 
 
+async def _upload_file(file) -> str:
+    """Salva un file caricato dalla chat in resumes/ e lo indicizza subito nel database."""
+    dst_path = os.path.join(Config.DOCUMENTS_DIR, file.name)
+    os.makedirs(Config.DOCUMENTS_DIR, exist_ok=True)
+    shutil.move(file.path, dst_path)
+
+    documents, metadatas, ids = DocumentProcessor.process_single_document(dst_path)
+    if not documents:
+        return f"Errore nell'elaborazione di '{file.name}'."
+
+    db.add_documents(documents, metadatas, ids)
+    return f"'{file.name}' caricato e indicizzato con successo."
+
+
 @cl.on_message
 async def handle_message(message: cl.Message):
+    if message.elements:
+        files = [
+            element
+            for element in message.elements
+            if element.name.lower().endswith(tuple(DocumentProcessor.SUPPORTED_EXTENSIONS))
+            and not element.name.startswith(("~$", "."))
+        ]
+
+        if files:
+            upload_results = [await _upload_file(file) for file in files]
+        else:
+            upload_results = ["Nessun file in un formato supportato."]
+
+        await cl.Message(content="\n".join(upload_results)).send()
+
+        if not message.content.strip():
+            return
+
     user_question = message.content
+
     results = db.query(user_question)
-    filename = results["metadatas"][0][0]["source"]
+    try:
+        filename = results["metadatas"][0][0]["source"]
+    except IndexError:
+        await cl.Message(
+            content="Il database e' vuoto: usa Reindex Database prima di fare domande."
+        ).send()
+        return
+
     candidate_info = DocumentProcessor.read_first_lines(
         os.path.join(Config.DOCUMENTS_DIR, filename), 10
     )

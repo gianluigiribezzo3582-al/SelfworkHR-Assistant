@@ -34,11 +34,12 @@ class DocumentProcessor:
 
     @staticmethod
     def read_first_lines(file_path, n_lines=100):
-        try:
-            with open(file_path, "r", encoding="utf-8") as file:
-                return [line.strip() for line, _ in zip(file, range(n_lines))]
-        except UnicodeDecodeError:
-            return []  # Formato binario: nessuna anteprima testuale disponibile
+        """Restituisce le prime n righe non vuote del contenuto del file, convertito in
+        markdown: funziona sia per file di testo semplice sia per formati binari
+        (pdf, docx, xlsx...), da cui altrimenti non si potrebbe estrarre nulla."""
+        content = DocumentProcessor._extract_content(file_path)
+        lines = [line.strip() for line in content.splitlines() if line.strip()]
+        return lines[:n_lines]
 
     @staticmethod
     def get_file_hash(file_path):
@@ -89,24 +90,31 @@ class DocumentProcessor:
         return results
 
     @staticmethod
+    def _extract_content(file_path):
+        """Estrae il contenuto testuale (markdown) di un file supportato, gestendo anche
+        gli archivi zip. Ritorna stringa vuota per estensioni non supportate."""
+        extension = os.path.splitext(file_path)[1].lower()
+        file_type = DocumentProcessor.SUPPORTED_EXTENSIONS.get(extension)
+
+        if not file_type:
+            return ""
+
+        if file_type == "archive":
+            content = ""
+            for filename, zip_content in DocumentProcessor._process_zip_file(file_path):
+                content += f"\n\nFile: {filename}\n{zip_content}"
+            return content
+
+        return DocumentProcessor._convert_to_markdown(file_path)
+
+    @staticmethod
     def process_single_document(file_path):
         """Suddivide un singolo file in chunk semantici pronti per l'indicizzazione."""
         documents = []
         metadatas = []
         ids = []
 
-        extension = os.path.splitext(file_path)[1].lower()
-        file_type = DocumentProcessor.SUPPORTED_EXTENSIONS.get(extension)
-
-        if not file_type:
-            return documents, metadatas, ids
-
-        if file_type == "archive":
-            content = ""
-            for filename, zip_content in DocumentProcessor._process_zip_file(file_path):
-                content += f"\n\nFile: {filename}\n{zip_content}"
-        else:
-            content = DocumentProcessor._convert_to_markdown(file_path)
+        content = DocumentProcessor._extract_content(file_path)
 
         if content and not content.isspace():
             sc = SemanticChunking()
@@ -131,6 +139,9 @@ class DocumentProcessor:
             )
             for f in os.listdir(Config.DOCUMENTS_DIR)
             if os.path.splitext(f)[1].lower() in DocumentProcessor.SUPPORTED_EXTENSIONS
+            # Esclude file temporanei/di lock (es. "~$file.docx" creato da Word mentre il
+            # documento e' aperto) e file nascosti, che non sono veri CV.
+            and not f.startswith(("~$", "."))
         }
 
         existing_files = db.get_tracked_files()

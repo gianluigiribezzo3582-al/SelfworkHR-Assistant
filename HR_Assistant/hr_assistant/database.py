@@ -12,9 +12,17 @@ class Database:
 
         # Initialize persistent client
         self.client = chromadb.PersistentClient(path=Config.PERSISTENT_DIR)
+        self._init_collection()
+
+    def _init_collection(self):
         self.collection = self.client.get_or_create_collection(
             name=Config.COLLECTION_NAME, embedding_function=self.openai_ef
         )
+
+    def delete_collection(self):
+        """Elimina completamente la collezione e ne ricrea una vuota, pronta per un nuovo reindex."""
+        self.client.delete_collection(Config.COLLECTION_NAME)
+        self._init_collection()
 
     def add_documents(self, documents, metadatas, ids):
         self.collection.add(documents=documents, metadatas=metadatas, ids=ids)
