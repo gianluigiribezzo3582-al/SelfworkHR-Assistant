@@ -18,14 +18,15 @@ print(f"Sync CV completato: {added} aggiunti, {updated} aggiornati, {removed} ri
 async def on_db_stats(action: cl.Action):
     db_info = db.get_stats()
     response = await LLMHelper.get_db_stats(db_info)
-    await cl.Message(response).send()
+    await cl.Message(response, author="Database").send()
 
 
 @cl.action_callback("db_reindex")
 async def on_db_reindex(action: cl.Action):
     added, updated, removed = DocumentProcessor.process_documents(db)
     await cl.Message(
-        f"DB reindicizzato con successo. Sync CV completato: {added} aggiunti, {updated} aggiornati, {removed} rimossi"
+        f"DB reindicizzato con successo. Sync CV completato: {added} aggiunti, {updated} aggiornati, {removed} rimossi",
+        author="Database",
     ).send()
 
 
@@ -33,7 +34,8 @@ async def on_db_reindex(action: cl.Action):
 async def on_db_remove(action: cl.Action):
     db.delete_collection()
     await cl.Message(
-        "Database svuotato completamente. Usa Reindex Database per ripopolarlo."
+        "Database svuotato completamente. Usa Reindex Database per ripopolarlo.",
+        author="Database",
     ).send()
 
 

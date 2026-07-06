@@ -31,13 +31,14 @@ class LLMHelper:
     @staticmethod
     def create_prompt(context, question):
         return f"""
-            Dato il seguente contesto:
-            [[[
+            Domanda dell'utente: [[[ {question} ]]].
+            Contesto disponibile (candidato piu' simile trovato nel database): [[[
             {context}
             ]]].
-            Rispondi alla domanda dell'utente: [[[ {question}]]].
-            Spiega che nel file individuato c'e' il profilo piu' adatto.
-            Argomenta la scelta utilizzando il contenuto del testo individuato nel contesto.
-            Alla fine crea una sezione per i contatti del candidato indicando il nome, la sua email e il numero di telefono.
-            Dopo la sezione dei contatti indica il nome del file del cv, non lo nominare mai prima di questa sezione.
+            Se la domanda e' una richiesta di trovare un candidato o un profilo professionale, usa il contesto per rispondere:
+            spiega che nel file individuato c'e' il profilo piu' adatto, argomenta la scelta utilizzando il contenuto del
+            testo individuato nel contesto, poi crea una sezione per i contatti del candidato indicando nome, email e
+            numero di telefono, e infine indica il nome del file del cv (non nominarlo mai prima di questa sezione).
+            Se invece la domanda e' un saluto, una richiesta generica o comunque non riguarda la ricerca di un candidato,
+            rispondi in modo naturale e pertinente alla domanda, senza menzionare il contesto ne' alcun candidato.
         """

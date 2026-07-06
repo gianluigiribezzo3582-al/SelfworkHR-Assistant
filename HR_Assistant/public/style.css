@@ -1,0 +1,27 @@
+/* Font Google "Lora" - https://fonts.google.com/specimen/Lora */
+.lora-uniquifier {
+  font-family: "Lora", serif;
+  font-optical-sizing: auto;
+  font-weight: 400;
+  font-style: normal;
+}
+
+html,
+body,
+#root {
+  font-family: "Lora", serif;
+}
+
+::selection {
+  background-color: hsl(var(--primary) / 0.35);
+  color: hsl(var(--foreground));
+}
+
+::-webkit-scrollbar-thumb {
+  background-color: hsl(var(--secondary));
+  border-radius: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background-color: transparent;
+}
